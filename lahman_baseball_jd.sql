@@ -1,14 +1,31 @@
 -- Q1: What range of years for baseball games played does the provided database cover?
--- A1: 1871 to 2016
 
-SELECT MIN(yearid),
+SELECT
+	MIN(yearid),
 	MAX(yearid)
 FROM batting;
+-- 1871 to 2016, use MAX
+
+SELECT
+	MIN(yearid),
+	MAX(yearid)
+FROM collegeplaying;
+-- 1864 to 2014, use MIN
+
+SELECT
+	MIN(c.yearid),
+	MAX(b.yearid)
+FROM batting AS b
+JOIN people AS p
+ON b.playerid = p.playerid
+JOIN collegeplaying AS c
+ON p.playerid = c.playerid;
+-- A1: 1864 to 2016
 
 -- Q2: Find the name and height of the shortest player in the database. How many games did he play in? What is the name of the team for which he played?
--- A2: Eddie Edward Carl Gaedel.
 
-SELECT MIN(height) AS shortest_height,
+SELECT
+	MIN(height) AS shortest_height,
 	namefirst,
 	namegiven,
 	namelast,
@@ -22,8 +39,10 @@ FROM (SELECT playerid,
 GROUP BY namefirst, namegiven, namelast, playerid
 ORDER BY shortest_height
 LIMIT 1;
+-- A2 by Jasmine: Eddie Edward Carl Gaedel.
 
-SELECT DISTINCT p.playerid,
+SELECT
+	DISTINCT p.playerid,
 	p.height,
 	p.namefirst,
 	p.namelast,
@@ -33,9 +52,10 @@ JOIN appearances AS a
 ON p.playerid = a.playerid
 ORDER BY p.height
 LIMIT 1;
+-- A2 by Rob and Tim: Eddie Edward Carl Gaedel.
 
--- A2: Eddie Edward Carl Gaedel played in 1 game.
-SELECT a.g_all,
+SELECT
+	a.g_all,
 	p.namefirst,
 	p.namegiven,
 	p.namelast,
@@ -44,8 +64,8 @@ FROM people AS p
 JOIN appearances AS a
 ON p.playerid = a.playerid
 WHERE p.playerid = 'gaedeed01';
+-- A2: Eddie Edward Carl Gaedel played in 1 game.
 
--- A2: Eddie Edward Carl Gaedel played for St. Louis Browns
 SELECT a.g_all,
 	t.name,
 	p.namegiven,
@@ -56,13 +76,14 @@ ON p.playerid = a.playerid
 JOIN teams AS t
 ON a.teamid = t.teamid
 ORDER BY p.height;
+-- A2: Eddie Edward Carl Gaedel played for St. Louis Browns
 
 -- Q3: Find all players in the database who played at Vanderbilt University. Create a list showing each player’s first and last names as well as the total salary they earned in the major leagues. Sort this list in descending order by the total salary earned. Which Vanderbilt player earned the most money in the majors?
--- A3: David David Taylor Price at $245,553,888.
 
-SELECT CONCAT(CAST(p.namefirst AS text), ' ', CAST(p.namelast AS text)) AS full_name,
+SELECT
+	CONCAT(CAST(p.namefirst AS text), ' ', CAST(p.namelast AS text)) AS full_name,
 	s.schoolname,
-	SUM(sa.salary) AS salary
+	SUM(sa.salary) AS total_salary_earned
 FROM people AS p
 JOIN collegeplaying AS c
 ON p.playerid = c.playerid
@@ -73,12 +94,13 @@ ON p.playerid = sa.playerid
 WHERE s.schoolname = 'Vanderbilt University'
 GROUP BY full_name,
 	s.schoolname
-ORDER BY salary DESC;
+ORDER BY total_salary_earned DESC;
+-- A3: David David Taylor Price at $245,553,888.
 
 -- Q4: Using the fielding table, group players into three groups based on their position: label players with position OF as "Outfield", those with position "SS", "1B", "2B", and "3B" as "Infield", and those with position "P" or "C" as "Battery". Determine the number of putouts made by each of these three groups in 2016.
--- A4: Outfield = 29,650 putouts, Infield = 58,934 putouts, Battery = 41,424 putouts
 
-SELECT DISTINCT playerid,
+SELECT
+	DISTINCT playerid,
 	yearid,
 	pos,
 	CASE WHEN pos = 'OF' THEN 'Outfield'
@@ -100,12 +122,195 @@ SELECT
 FROM fielding
 WHERE yearid = '2016'
 GROUP BY position;
+-- A4: Outfield = 29,650 putouts, Infield = 58,934 putouts, Battery = 41,424 putouts
 
 -- Q5: Find the average number of strikeouts per game by decade since 1920. Round the numbers you report to 2 decimal places. Do the same for home runs per game. Do you see any trends? USE THE TEAMS TABLE
 
-SELECT yearid/10*10 AS decade,
-	AVG(so)
-FROM batting
+-- Average number of strikeouts per game by decade since 1920:
+SELECT
+	(AVG(so) + AVG(soa)) / 2 AS avg_so,
+	SUM(g) AS sumgame,
+	ROUND(((AVG(so) + AVG(soa)) / 2) / (SUM(g)), 2) AS avg_so_pg_bd,
+	CASE WHEN yearid >= '1920' AND yearid <= '1929' THEN '1920s'
+		WHEN yearid >= '1930' AND yearid <= '1939' THEN '1930s'
+		WHEN yearid >= '1940' AND yearid <= '1949' THEN '1940s'
+		WHEN yearid >= '1950' AND yearid <= '1959' THEN '1950s'
+		WHEN yearid >= '1960' AND yearid <= '1969' THEN '1960s'
+		WHEN yearid >= '1970' AND yearid <= '1979' THEN '1970s'
+		WHEN yearid >= '1980' AND yearid <= '1989' THEN '1980s'
+		WHEN yearid >= '1990' AND yearid <= '1999' THEN '1990s'
+		WHEN yearid >= '2000' AND yearid <= '2009' THEN '2000s'
+		WHEN yearid >= '2010' AND yearid <= '2019' THEN '2010s'
+		END AS decade
+FROM teams
 WHERE yearid >= '1920'
-GROUP BY yearid/10*10
+GROUP by decade
 ORDER BY decade DESC;
+-- A5: Strikeouts more common in the latter half of 1920-2010
+
+-- Average number of home runs per game by decade since 1920:
+
+SELECT
+	ROUND(AVG(CAST(hr AS numeric)) / (SUM(CAST(g AS numeric))), 4) AS avg_hr_pg,
+	CASE WHEN yearid >= '1920' AND yearid <= '1929' THEN '1920s'
+		WHEN yearid >= '1930' AND yearid <= '1939' THEN '1930s'
+		WHEN yearid >= '1940' AND yearid <= '1949' THEN '1940s'
+		WHEN yearid >= '1950' AND yearid <= '1959' THEN '1950s'
+		WHEN yearid >= '1960' AND yearid <= '1969' THEN '1960s'
+		WHEN yearid >= '1970' AND yearid <= '1979' THEN '1970s'
+		WHEN yearid >= '1980' AND yearid <= '1989' THEN '1980s'
+		WHEN yearid >= '1990' AND yearid <= '1999' THEN '1990s'
+		WHEN yearid >= '2000' AND yearid <= '2009' THEN '2000s'
+		WHEN yearid >= '2010' AND yearid <= '2019' THEN '2010s'
+		END AS decade
+FROM teams
+WHERE yearid >= '1920'
+GROUP by decade
+ORDER BY decade DESC;
+-- A5: Home runs peaked in the 1950s?? Not sure if this is right
+
+-- Q6: Find the player who had the most success stealing bases in 2016, where success is measured as the percentage of stolen base attempts which are successful. (A stolen base attempt results either in a stolen base or being caught stealing.) Consider only players who attempted at least 20 stolen bases.
+
+SELECT
+	DISTINCT b.playerid,
+	p.namefirst,
+	p.namelast,
+	CAST(b.sb AS numeric) AS stolenbases,
+	CAST(b.cs AS numeric) AS caughtstealing,
+	CAST(b.sb AS numeric) + CAST(b.cs AS numeric) AS attempts,
+	ROUND((CAST(b.sb AS numeric) / (CAST(b.sb AS numeric) + CAST(b.cs AS numeric))), 2) AS success
+FROM batting AS b
+JOIN people AS p
+ON b.playerid = p.playerid
+WHERE b.yearid = '2016'
+GROUP BY
+	b.playerid,
+	p.namefirst,
+	p.namelast,
+	b.sb,
+	b.cs
+HAVING CAST(sb AS numeric) + CAST(cs AS numeric) >= 20
+ORDER BY success DESC;
+-- A6: Chris Owings had the most success stealing bases in 2016 with a success rate of 91%.
+
+-- Q7: From 1970 – 2016, what is the largest number of wins for a team that did not win the world series? What is the smallest number of wins for a team that did win the world series? Doing this will probably result in an unusually small number of wins for a world series champion – determine why this is the case. Then redo your query, excluding the problem year. How often from 1970 – 2016 was it the case that a team with the most wins also won the world series? What percentage of the time?
+
+SELECT
+	DISTINCT name,
+	wswin,
+	SUM(w) AS total_wins
+FROM teams
+WHERE wswin NOT LIKE 'Y'
+	AND yearid BETWEEN '1970' AND '2016'
+GROUP BY
+	name,
+	wswin
+ORDER BY total_wins DESC;
+
+SELECT
+	DISTINCT name,
+	wswin,
+	SUM(w) OVER(PARTITION BY name) AS total_wins
+FROM teams
+WHERE wswin NOT LIKE 'Y'
+	AND yearid BETWEEN '1970' AND '2016'
+GROUP BY
+	name,
+	wswin,
+	w
+ORDER BY total_wins DESC;
+
+-- A7: Los Angeles Dodgers has the largest number of wins (3796) for a team that did NOT win the World Series.
+
+SELECT
+	name,
+	wswin,
+	SUM(w) AS total_wins
+FROM teams
+WHERE wswin LIKE 'Y'
+	AND yearid BETWEEN '1970' AND '2016'
+GROUP BY
+	name,
+	wswin
+ORDER BY total_wins;
+
+SELECT
+	DISTINCT name,
+	wswin,
+	SUM(w) OVER(PARTITION BY name) AS total_wins
+FROM teams
+WHERE wswin LIKE 'Y'
+	AND yearid BETWEEN '1970' AND '2016'
+GROUP BY
+	name,
+	wswin,
+	w
+ORDER BY total_wins;
+
+-- A7: Atlanta Braves has the smallest number of wins (90) for a team that DID win the World Series.
+
+SELECT
+	name,
+	yearid,
+	SUM(w) as total_wins,
+	wswin
+FROM teams
+WHERE name = 'Atlanta Braves'
+GROUP BY
+	name,
+	yearid,
+	wswin
+ORDER BY yearid DESC;
+-- A7: 1994's World Series Win value is null, therefore that year's wins (68) were excluded from the above query result.
+
+SELECT
+	name,
+	yearid,
+	SUM(w) as total_wins,
+	wswin
+FROM teams
+WHERE name = 'Atlanta Braves'
+	AND yearid <> 1994
+GROUP BY
+	name,
+	yearid,
+	wswin
+ORDER BY yearid DESC;
+-- Above query excludes the problem year 1994.
+
+-- Q7 last part: How often from 1970 – 2016 was it the case that a team with the most wins also won the world series? What percentage of the time?
+
+SELECT
+	DISTINCT yearid,
+	name,
+	wswin,
+	wins,
+	mostwins
+FROM(
+	SELECT
+		DISTINCT yearid,
+		name,
+		wswin,
+		w AS wins,
+		MAX(w) OVER(PARTITION BY yearid) AS mostwins
+	FROM teams
+	WHERE yearid BETWEEN '1970' AND '2016'
+	ORDER BY yearid DESC) AS subquery
+WHERE wswin LIKE 'Y'
+	AND wins = mostwins
+ORDER BY yearid DESC;
+
+-- A7: 12 out of 47 of the years from 1970 to 2016 (inclusive) or 25.53% of the time.
+
+-- Q8: Using the attendance figures from the homegames table, find the teams and parks which had the top 5 average attendance per game in 2016 (where average attendance is defined as total attendance divided by number of games). Only consider parks where there were at least 10 games played. Report the park name, team name, and average attendance. Repeat for the lowest 5 average attendance.
+
+SELECT
+	team,
+	park,
+	attendance / COUNT(games) AS avg_att
+FROM homegames
+GROUP BY
+	team,
+	park,
+	attendance
+ORDER BY avg_att DESC;
