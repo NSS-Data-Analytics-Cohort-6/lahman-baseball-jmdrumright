@@ -197,86 +197,52 @@ ORDER BY success DESC;
 
 SELECT
 	DISTINCT name,
+	yearid,
 	wswin,
-	SUM(w) AS total_wins
+	w
 FROM teams
-WHERE wswin NOT LIKE 'Y'
-	AND yearid BETWEEN '1970' AND '2016'
-GROUP BY
-	name,
-	wswin
-ORDER BY total_wins DESC;
+WHERE yearid >= 1970
+	AND wswin NOT LIKE 'Y'
+ORDER BY w DESC;
+-- A7: Seattle Mariners has the largest number of wins (116 in 2001) for a team that did NOT win the World Series.
 
 SELECT
 	DISTINCT name,
-	wswin,
-	SUM(w) OVER(PARTITION BY name) AS total_wins
-FROM teams
-WHERE wswin NOT LIKE 'Y'
-	AND yearid BETWEEN '1970' AND '2016'
-GROUP BY
-	name,
+	yearid,
 	wswin,
 	w
-ORDER BY total_wins DESC;
-
--- A7: Los Angeles Dodgers has the largest number of wins (3796) for a team that did NOT win the World Series.
-
-SELECT
-	name,
-	wswin,
-	SUM(w) AS total_wins
 FROM teams
-WHERE wswin LIKE 'Y'
-	AND yearid BETWEEN '1970' AND '2016'
-GROUP BY
-	name,
-	wswin
-ORDER BY total_wins;
+WHERE yearid >= 1970
+	AND wswin LIKE 'Y'
+ORDER BY w;
+-- A7: Los Angeles Dodgers has the smallest number of wins (63 in 1981) for a team that DID win the World Series. Sabr.org says that there was a "50-day players strike in 1981, in which about a third of the season was eliminated".
 
 SELECT
 	DISTINCT name,
-	wswin,
-	SUM(w) OVER(PARTITION BY name) AS total_wins
-FROM teams
-WHERE wswin LIKE 'Y'
-	AND yearid BETWEEN '1970' AND '2016'
-GROUP BY
-	name,
+	yearid,
 	wswin,
 	w
-ORDER BY total_wins;
-
--- A7: Atlanta Braves has the smallest number of wins (90) for a team that DID win the World Series.
+FROM teams
+WHERE yearid >= 1970
+	AND wswin LIKE 'Y'
+	AND yearid <> 1981
+ORDER BY w;
+-- A7: Last query redone without 1981: St. Louis Cardinals has the smallest number of wins (83 in 2006).
 
 SELECT
-	name,
+	DISTINCT name,
 	yearid,
-	SUM(w) as total_wins,
-	wswin
+	w
 FROM teams
-WHERE name = 'Atlanta Braves'
-GROUP BY
-	name,
+WHERE yearid >= 1970
+	AND yearid <> 1981
+GROUP BY DISTINCT name,
 	yearid,
+	w,
 	wswin
-ORDER BY yearid DESC;
--- A7: 1994's World Series Win value is null, therefore that year's wins (68) were excluded from the above query result.
-
-SELECT
-	name,
-	yearid,
-	SUM(w) as total_wins,
-	wswin
-FROM teams
-WHERE name = 'Atlanta Braves'
-	AND yearid <> 1994
-GROUP BY
-	name,
-	yearid,
-	wswin
-ORDER BY yearid DESC;
--- Above query excludes the problem year 1994.
+HAVING wswin LIKE 'Y'
+ORDER BY w;
+-- Editing A7 with HAVING, not sure if I need to edit previous queries to reflect this
 
 -- Q7 last part: How often from 1970 – 2016 was it the case that a team with the most wins also won the world series? What percentage of the time?
 
@@ -294,7 +260,7 @@ FROM(
 		w AS wins,
 		MAX(w) OVER(PARTITION BY yearid) AS mostwins
 	FROM teams
-	WHERE yearid BETWEEN '1970' AND '2016'
+	WHERE yearid >= 1970
 	ORDER BY yearid DESC) AS subquery
 WHERE wswin LIKE 'Y'
 	AND wins = mostwins
