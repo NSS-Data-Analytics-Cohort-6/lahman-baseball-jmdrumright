@@ -128,9 +128,9 @@ GROUP BY position;
 
 -- Average number of strikeouts per game by decade since 1920:
 SELECT
-	(AVG(so) + AVG(soa)) / 2 AS avg_so,
+	AVG(so+soa) / 2 AS avg_so,
 	SUM(g) AS sumgame,
-	ROUND(((AVG(so) + AVG(soa)) / 2) / (SUM(g)), 2) AS avg_so_pg_bd,
+	ROUND(((AVG(so+soa)) / 2) / (SUM(g)), 2) AS avg_so_pg_bd,
 	CASE WHEN yearid >= '1920' AND yearid <= '1929' THEN '1920s'
 		WHEN yearid >= '1930' AND yearid <= '1939' THEN '1930s'
 		WHEN yearid >= '1940' AND yearid <= '1949' THEN '1940s'
@@ -146,6 +146,8 @@ FROM teams
 WHERE yearid >= '1920'
 GROUP by decade
 ORDER BY decade DESC;
+SELECT yearid
+FROM teams
 -- A5: Strikeouts more common in the latter half of 1920-2010
 
 -- Average number of home runs per game by decade since 1920:
@@ -271,12 +273,75 @@ ORDER BY yearid DESC;
 -- Q8: Using the attendance figures from the homegames table, find the teams and parks which had the top 5 average attendance per game in 2016 (where average attendance is defined as total attendance divided by number of games). Only consider parks where there were at least 10 games played. Report the park name, team name, and average attendance. Repeat for the lowest 5 average attendance.
 
 SELECT
-	team,
-	park,
-	attendance / COUNT(games) AS avg_att
-FROM homegames
+	p.park_name,
+	h.team,
+	ROUND((CAST(h.attendance AS numeric) / CAST(h.games AS numeric))) AS avg_att,
+	h.games
+FROM homegames AS h
+JOIN parks AS p
+ON h.park = p.park
+WHERE h.year = 2016
 GROUP BY
-	team,
-	park,
-	attendance
-ORDER BY avg_att DESC;
+	p.park_name,
+	h.team,
+	h.games,
+	h.attendance
+HAVING games >= 10
+ORDER BY avg_att DESC
+LIMIT 5;
+/*A8: Dodger Stadium (Los Angeles Dodgers) at 45,720
+Busch Stadium III (St Louis Cardinals) at 42,525
+Rogers Center (Toronto Blue Jays) at 41,878
+AT&T Park (San Francisco Giants) at 41,546
+Wrigley Field (Chicago Cubs) at 39,906*/
+
+SELECT
+	p.park_name,
+	h.team,
+	ROUND((CAST(h.attendance AS numeric) / CAST(h.games AS numeric))) AS avg_att,
+	h.games
+FROM homegames AS h
+JOIN parks AS p
+ON h.park = p.park
+WHERE h.year = 2016
+GROUP BY
+	p.park_name,
+	h.team,
+	h.games,
+	h.attendance
+HAVING games >= 10
+ORDER BY avg_att
+LIMIT 5;
+/*A8: Tropicana Field (Tampa Bay Rays) at 15,879
+Oakland-Alameda County Coliseum (Oakland Athletics) at 18,784
+Progressive Field (Cleveland Indians) at 19,650
+Marlins Park (Miami Marlins) at 21,405
+U.S. Cellular Field (Chicago White Sox) at 21,559*/
+
+-- Q9: Which managers have won the TSN Manager of the Year award in both the National League (NL) and the American League (AL)? Give their full name and the teams that they were managing when they won the award.
+
+WITH s AS (
+	SELECT
+		playerid,
+		awardid,
+		yearid,
+		lgid
+	FROM awardsmanagers
+	WHERE awardid LIKE 'TSN Manager of the Year'
+		AND lgid LIKE 'NL'
+	UNION
+	SELECT
+		playerid,
+		awardid,
+		yearid,
+		lgid
+	FROM awardsmanagers
+	WHERE awardid LIKE 'TSN Manager of the Year'
+		AND lgid LIKE 'AL')
+SELECT
+	playerid,
+	lgid
+FROM s
+WHERE lgid LIKE 'NL'
+	OR lgid LIKE 'AL'
+ORDER BY playerid
