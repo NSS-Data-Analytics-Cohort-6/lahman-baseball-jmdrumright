@@ -229,22 +229,7 @@ WHERE yearid >= 1970
 ORDER BY w;
 -- A7: Last query redone without 1981: St. Louis Cardinals has the smallest number of wins (83 in 2006).
 
-SELECT
-	DISTINCT name,
-	yearid,
-	w
-FROM teams
-WHERE yearid >= 1970
-	AND yearid <> 1981
-GROUP BY DISTINCT name,
-	yearid,
-	w,
-	wswin
-HAVING wswin LIKE 'Y'
-ORDER BY w;
--- Editing A7 with HAVING, not sure if I need to edit previous queries to reflect this
-
--- Q7 last part: How often from 1970 – 2016 was it the case that a team with the most wins also won the world series? What percentage of the time?
+-- Q7 last q: How often from 1970 – 2016 was it the case that a team with the most wins also won the world series? What percentage of the time?
 
 SELECT
 	DISTINCT yearid,
@@ -266,7 +251,7 @@ WHERE wswin LIKE 'Y'
 	AND wins = mostwins
 ORDER BY yearid DESC;
 
--- A7: 12 out of 47 of the years from 1970 to 2016 (inclusive) or 25.53% of the time.
+-- A7: 12 / 47 of the years from 1970 to 2016 (inclusive) or 25.53% of the time.
 
 -- Q8: Using the attendance figures from the homegames table, find the teams and parks which had the top 5 average attendance per game in 2016 (where average attendance is defined as total attendance divided by number of games). Only consider parks where there were at least 10 games played. Report the park name, team name, and average attendance. Repeat for the lowest 5 average attendance.
 
@@ -318,31 +303,123 @@ U.S. Cellular Field (Chicago White Sox) at 21,559*/
 
 -- Q9: Which managers have won the TSN Manager of the Year award in both the National League (NL) and the American League (AL)? Give their full name and the teams that they were managing when they won the award.
 
-WITH s1 AS (
+WITH nat AS (
 	SELECT
 		DISTINCT playerid,
 		awardid,
 		yearid,
 		lgid
 	FROM awardsmanagers
-	WHERE awardid LIKE 'TSN Manager of the Year' -- 1st CTE for National League
+	WHERE awardid LIKE 'TSN Manager of the Year' -- 1st CTE: National League
 		AND lgid LIKE 'NL'),
-s2 AS (
+am AS (
 	SELECT
 		DISTINCT playerid,
 		awardid,
 		yearid,
 		lgid
 	FROM awardsmanagers
-	WHERE awardid LIKE 'TSN Manager of the Year' -- 2nd CTE for American League
+	WHERE awardid LIKE 'TSN Manager of the Year' -- 2nd CTE: American League
 		AND lgid LIKE 'AL')
 SELECT
-	s1.playerid, -- Find the player(s) in the National League who also appear in the American League
-	s1.yearid AS NLwinningyear,
-	s2.yearid AS ALwinningyear
-FROM s1
-JOIN s2
-ON s1.playerid = s2.playerid
-WHERE s1.lgid LIKE 'NL'
-	AND s2.lgid LIKE 'AL'; -- Whoever is in s1 HAS to be in s2 to count as winning in both leagues hence AND
--- A9: leylaj99 and johnsda02
+	nat.playerid, -- Find the person(s) in the National League (s1) where...
+	nat.yearid AS NLwinningyear,
+	am.yearid AS ALwinningyear
+FROM nat
+JOIN am
+ON nat.playerid = am.playerid -- ...they also appear in the American League (s2)
+WHERE nat.lgid LIKE 'NL'
+	AND am.lgid LIKE 'AL';
+-- A9: johnsda02 (NL in 2012, AL in 1997) and leylaji99 (NL in 1988, 1990, 1992, AL in 2006)
+
+SELECT
+	a.playerid,
+	a.yearid,
+	p.namefirst,
+	p.namelast
+FROM awardsmanagers AS a
+JOIN people AS p
+ON a.playerid = p.playerid
+WHERE a.playerid LIKE 'johnsda02'
+	OR a.playerid LIKE 'leylaji99';
+-- A9: Davey Johnson (johnsda02) and Jim Leyland (leylaji99)
+
+SELECT
+	DISTINCT m.playerid,
+	m.yearid,
+	m.teamid,
+	t.name
+FROM managers AS m
+JOIN teams AS t
+ON m.teamid = t.teamid
+WHERE m.playerid LIKE 'johnsda02'
+	AND (m.yearid = 2012 OR m.yearid = 1997)
+ORDER BY m.yearid DESC;
+-- A9: Davey Johnson was managing the Baltimore Orioles in 1997 and the Washington Senators/Nationals in 2012.
+
+SELECT
+	DISTINCT m.playerid,
+	m.yearid,
+	m.teamid,
+	t.name
+FROM managers AS m
+JOIN teams AS t
+ON m.teamid = t.teamid
+WHERE m.playerid LIKE 'leylaji99'
+	AND (m.yearid = 1988 OR m.yearid = 1990 OR m.yearid = 1992 OR m.yearid = 2006)
+ORDER BY m.yearid DESC;
+-- A9: Jim Leyland was managing the Pittsburgh Pirates/Pittsburg Alleghenys in 1988, 1990, 1992 and the Detroit Tigers in 2006.
+
+-- Q10: Find all players who hit their career highest number of home runs in 2016. Consider only players who have played in the league for at least 10 years, and who hit at least one home run in 2016. Report the players' first and last names and the number of home runs they hit in 2016.
+
+WITH maxhr AS ( -- 1st CTE: Highest hr for each player out of the entirety of the table
+	SELECT
+		DISTINCT playerid,
+		MAX(hr) OVER(PARTITION BY playerid) AS maxhrpp
+	FROM batting
+	GROUP BY playerid, hr),
+	
+sixteenhr AS ( -- 2nd CTE: Number of homeruns for each player in 2016 with at least 1 hr
+	SELECT
+		DISTINCT playerid,
+		SUM(hr) OVER(PARTITION BY playerid) AS totalhrpp
+	FROM batting
+	WHERE yearid = 2016
+		AND hr >= 1
+	GROUP BY playerid, hr),
+
+decade AS ( -- 3rd CTE: Players with at least 10 yrs in the league
+	SELECT
+		b.playerid,
+		b.hr,
+		p.debut,
+		p.finalgame,
+		CAST(p.finalgame AS date) - CAST (p.debut AS date) AS daysinlg
+	FROM batting AS b
+	JOIN people AS p
+	ON b.playerid = p.playerid
+	WHERE b.yearid = 2016
+		AND p.debut <= '2007-04-03' -- Cuz MAX(debut) = 2017-04-03, this says they started at least 10 yrs ago
+		AND CAST(p.finalgame AS date) - CAST (p.debut AS date) >= 3650 -- Played for at least 10 years regardless of debut
+	GROUP BY
+		b.playerid,
+		b.hr,
+		p.finalgame,
+		p.debut)
+
+SELECT
+	DISTINCT mh.playerid,
+	mh.maxhrpp,
+	sh.totalhrpp,
+	d.daysinlg,
+	p.namefirst,
+	p.namelast
+FROM maxhr AS mh
+JOIN sixteenhr AS sh
+ON mh.playerid = sh.playerid
+JOIN decade AS d
+ON sh.playerid = d.playerid
+JOIN people AS p
+ON d.playerid = p.playerid
+-- A10: 81 players? Need to check my window functions cuz I think I mixed them up.
+-- Note: The only nulls for p.debut and p.finalgame are when both are null (195 rows) so don't worry about them.
