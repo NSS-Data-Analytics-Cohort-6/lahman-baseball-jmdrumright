@@ -146,8 +146,6 @@ FROM teams
 WHERE yearid >= '1920'
 GROUP by decade
 ORDER BY decade DESC;
-SELECT yearid
-FROM teams
 -- A5: Strikeouts more common in the latter half of 1920-2010
 
 -- Average number of home runs per game by decade since 1920:
@@ -320,28 +318,31 @@ U.S. Cellular Field (Chicago White Sox) at 21,559*/
 
 -- Q9: Which managers have won the TSN Manager of the Year award in both the National League (NL) and the American League (AL)? Give their full name and the teams that they were managing when they won the award.
 
-WITH s AS (
+WITH s1 AS (
 	SELECT
-		playerid,
+		DISTINCT playerid,
 		awardid,
 		yearid,
 		lgid
 	FROM awardsmanagers
-	WHERE awardid LIKE 'TSN Manager of the Year'
-		AND lgid LIKE 'NL'
-	UNION
+	WHERE awardid LIKE 'TSN Manager of the Year' -- 1st CTE for National League
+		AND lgid LIKE 'NL'),
+s2 AS (
 	SELECT
-		playerid,
+		DISTINCT playerid,
 		awardid,
 		yearid,
 		lgid
 	FROM awardsmanagers
-	WHERE awardid LIKE 'TSN Manager of the Year'
+	WHERE awardid LIKE 'TSN Manager of the Year' -- 2nd CTE for American League
 		AND lgid LIKE 'AL')
 SELECT
-	playerid,
-	lgid
-FROM s
-WHERE lgid LIKE 'NL'
-	OR lgid LIKE 'AL'
-ORDER BY playerid
+	s1.playerid, -- Find the player(s) in the National League who also appear in the American League
+	s1.yearid AS NLwinningyear,
+	s2.yearid AS ALwinningyear
+FROM s1
+JOIN s2
+ON s1.playerid = s2.playerid
+WHERE s1.lgid LIKE 'NL'
+	AND s2.lgid LIKE 'AL'; -- Whoever is in s1 HAS to be in s2 to count as winning in both leagues hence AND
+-- A9: leylaj99 and johnsda02
