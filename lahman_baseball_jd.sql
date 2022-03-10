@@ -376,19 +376,19 @@ WITH maxhr AS ( -- 1st CTE: Max of the max hr per year for each player
 	SELECT
 	playerid,
 	yearid,
-	MAX(maxhrpp) AS maxmaxhrpp
+	MAX(maxhrpp) OVER(PARTITION BY playerid) AS maxmaxhrpp -- It's giving the same career high hr value for each career year but I want just the one year
 	FROM(
 			SELECT
 				playerid,
 				yearid,
 				SUM(hr) OVER(PARTITION BY playerid, yearid) AS maxhrpp -- Gimme the sum of the player then of the years within that player
 			FROM batting
-			GROUP BY playerid, yearid, hr) AS sub
+			GROUP BY playerid, yearid, hr) AS subquery
 	GROUP BY
 		playerid,
 		yearid,
 		maxhrpp
-	ORDER BY maxmaxhrpp DESC),
+	ORDER BY maxmaxhrpp DESC, yearid DESC),
 
 sixteenhr AS ( -- 2nd CTE: Number of homeruns for each player in 2016 with at least 1 hr
 	SELECT
@@ -415,6 +415,7 @@ decade AS ( -- 3rd CTE: Players with at least 10 yrs in the league
 		b.hr,
 		p.finalgame,
 		p.debut)
+-- Note: The only nulls for p.debut and p.finalgame are when both are null (195 rows) so don't worry about them
 
 SELECT
 	DISTINCT mh.playerid,
@@ -423,6 +424,7 @@ SELECT
 	mh.yearid,
 	mh.maxmaxhrpp,
 	sh.totalhrppinsixteen,
+	ROUND((CAST(d.daysinlg AS numeric) / 365), 2) AS yrsinlg,
 	d.daysinlg
 FROM maxhr AS mh
 JOIN sixteenhr AS sh
@@ -431,8 +433,14 @@ JOIN decade AS d
 ON sh.playerid = d.playerid
 JOIN people AS p
 ON d.playerid = p.playerid
-WHERE yearid = 2016
--- A10: 81 players
+WHERE yearid = 2016 -- Show me their hr for 2016 only
+	AND mh.maxmaxhrpp = sh.totalhrppinsixteen -- Show me that their career high matches 2016
+-- A10: 8 players hit their career highest number of home runs in 2016 (verified playerids thru the query below)
+-- Note: Some ppl's career high is in 2016 and another year: Edwin Encarnacion (2012), Francisco Liriano (2015), Adam Wainwright (2009)
 
--- Note: maxmaxhrpp = max hr (with respective year) of their max hr per year per player EQUALS totalhrppinsixteen = total hr in 2016 per player
--- Note: The only nulls for p.debut and p.finalgame are when both are null (195 rows) so don't worry about them.
+SELECT playerid, yearid, MAX(hr)
+FROM batting
+WHERE playerid LIKE 'canoro01' -- Change playerid to verify their career max is in 2016
+GROUP BY yearid, playerid, hr
+ORDER BY hr DESC, yearid DESC;
+-- Playerids (8): canoro01, colonba01, davisra01, encared01, liriafr01, napolmi01, paganan01, wainwad01
