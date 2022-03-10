@@ -322,27 +322,19 @@ am AS (
 	WHERE awardid LIKE 'TSN Manager of the Year' -- 2nd CTE: American League
 		AND lgid LIKE 'AL')
 SELECT
-	nat.playerid, -- Find the person(s) in the National League (s1) where...
+	nat.playerid,
+	p.namefirst,
+	p.namelast,
 	nat.yearid AS NLwinningyear,
 	am.yearid AS ALwinningyear
 FROM nat
 JOIN am
-ON nat.playerid = am.playerid -- ...they also appear in the American League (s2)
-WHERE nat.lgid LIKE 'NL'
-	AND am.lgid LIKE 'AL';
--- A9: johnsda02 (NL in 2012, AL in 1997) and leylaji99 (NL in 1988, 1990, 1992, AL in 2006)
-
-SELECT
-	a.playerid,
-	a.yearid,
-	p.namefirst,
-	p.namelast
-FROM awardsmanagers AS a
+ON nat.playerid = am.playerid
 JOIN people AS p
-ON a.playerid = p.playerid
-WHERE a.playerid LIKE 'johnsda02'
-	OR a.playerid LIKE 'leylaji99';
--- A9: Davey Johnson (johnsda02) and Jim Leyland (leylaji99)
+ON p.playerid = am.playerid
+WHERE (nat.lgid LIKE 'NL' AND am.lgid LIKE 'AL')
+	AND (am.playerid LIKE 'johnsda02' OR am.playerid LIKE 'leylaji99');
+-- A9: Davey Johnson (NL in 2012, AL in 1997) and Jim Leyland (NL in 1988, 1990, 1992, AL in 2006)
 
 SELECT
 	DISTINCT m.playerid,
@@ -372,17 +364,36 @@ ORDER BY m.yearid DESC;
 
 -- Q10: Find all players who hit their career highest number of home runs in 2016. Consider only players who have played in the league for at least 10 years, and who hit at least one home run in 2016. Report the players' first and last names and the number of home runs they hit in 2016.
 
+/* ALTERNATIVE maxhr CTE: Running this also returns 81 players in the end.
 WITH maxhr AS ( -- 1st CTE: Highest hr for each player out of the entirety of the table
 	SELECT
 		DISTINCT playerid,
 		MAX(hr) OVER(PARTITION BY playerid) AS maxhrpp
 	FROM batting
-	GROUP BY playerid, hr),
-	
+	GROUP BY playerid, hr),*/
+
+WITH maxhr AS ( -- 1st CTE: Max of the max hr per year for each player
+	SELECT
+	playerid,
+	yearid,
+	MAX(maxhrpp) AS maxmaxhrpp
+	FROM(
+			SELECT
+				playerid,
+				yearid,
+				SUM(hr) OVER(PARTITION BY playerid, yearid) AS maxhrpp -- Gimme the sum of the player then of the years within that player
+			FROM batting
+			GROUP BY playerid, yearid, hr) AS sub
+	GROUP BY
+		playerid,
+		yearid,
+		maxhrpp
+	ORDER BY maxmaxhrpp DESC),
+
 sixteenhr AS ( -- 2nd CTE: Number of homeruns for each player in 2016 with at least 1 hr
 	SELECT
 		DISTINCT playerid,
-		SUM(hr) OVER(PARTITION BY playerid) AS totalhrpp
+		SUM(hr) OVER(PARTITION BY playerid) AS totalhrppinsixteen
 	FROM batting
 	WHERE yearid = 2016
 		AND hr >= 1
@@ -398,9 +409,7 @@ decade AS ( -- 3rd CTE: Players with at least 10 yrs in the league
 	FROM batting AS b
 	JOIN people AS p
 	ON b.playerid = p.playerid
-	WHERE b.yearid = 2016
-		AND p.debut <= '2007-04-03' -- Cuz MAX(debut) = 2017-04-03, this says they started at least 10 yrs ago
-		AND CAST(p.finalgame AS date) - CAST (p.debut AS date) >= 3650 -- Played for at least 10 years regardless of debut
+	WHERE CAST(p.finalgame AS date) - CAST (p.debut AS date) >= 3650 -- Played for at least 10 years
 	GROUP BY
 		b.playerid,
 		b.hr,
@@ -409,11 +418,12 @@ decade AS ( -- 3rd CTE: Players with at least 10 yrs in the league
 
 SELECT
 	DISTINCT mh.playerid,
-	mh.maxhrpp,
-	sh.totalhrpp,
-	d.daysinlg,
 	p.namefirst,
-	p.namelast
+	p.namelast,
+	mh.yearid,
+	mh.maxmaxhrpp,
+	sh.totalhrppinsixteen,
+	d.daysinlg
 FROM maxhr AS mh
 JOIN sixteenhr AS sh
 ON mh.playerid = sh.playerid
@@ -421,5 +431,8 @@ JOIN decade AS d
 ON sh.playerid = d.playerid
 JOIN people AS p
 ON d.playerid = p.playerid
--- A10: 81 players? Need to check my window functions cuz I think I mixed them up.
+WHERE yearid = 2016
+-- A10: 81 players
+
+-- Note: maxmaxhrpp = max hr (with respective year) of their max hr per year per player EQUALS totalhrppinsixteen = total hr in 2016 per player
 -- Note: The only nulls for p.debut and p.finalgame are when both are null (195 rows) so don't worry about them.
