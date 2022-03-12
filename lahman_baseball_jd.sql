@@ -20,9 +20,9 @@ JOIN people AS p
 ON b.playerid = p.playerid
 JOIN collegeplaying AS c
 ON p.playerid = c.playerid;
--- A1: 1864 to 2016
+-- A1: 1864 to 2016 considering both batting and collegeplaying tables.
 
--- Q2: Find the name and height of the shortest player in the database. How many games did he play in? What is the name of the team for which he played?
+-- Q2: Find the name and height of the shortest player in the database. How many games did he play in? What is the name of the team for which he played? (Class review: Should have done in one query)
 
 SELECT
 	MIN(height) AS shortest_height,
@@ -78,7 +78,7 @@ ON a.teamid = t.teamid
 ORDER BY p.height;
 -- A2: Eddie Edward Carl Gaedel played for St. Louis Browns
 
--- Q3: Find all players in the database who played at Vanderbilt University. Create a list showing each player’s first and last names as well as the total salary they earned in the major leagues. Sort this list in descending order by the total salary earned. Which Vanderbilt player earned the most money in the majors?
+-- Q3: Find all players in the database who played at Vanderbilt University. Create a list showing each player’s first and last names as well as the total salary they earned in the major leagues. Sort this list in descending order by the total salary earned. Which Vanderbilt player earned the most money in the majors? Class review: Should be $81 mil, I did not get this one.
 
 SELECT
 	p.playerid,
@@ -118,6 +118,25 @@ WHERE c.playerid IN (SELECT playerid
 				  WHERE schoolid LIKE 'vandy') -- This shows that David Price should be $245,553,888 tho.
 	AND c.playerid LIKE 'priceda01'
 GROUP BY p.playerid, s.salary, s.yearid
+
+-- Amanda A3:
+SELECT
+	p.namefirst,
+	p.namelast,
+	sum(s.salary) AS totalsalary,
+	p.playerid
+FROM people AS p
+LEFT JOIN salaries AS s
+USING (playerid)
+WHERE playerid IN (SELECT  playerid
+		  FROM collegeplaying
+		  WHERE schoolid = 'vandy')
+GROUP BY p.namefirst,
+	p.namelast,
+	p.playerid
+HAVING sum(s.salary) IS NOT null
+ORDER BY totalsalary DESC;
+
 -- Q4: Using the fielding table, group players into three groups based on their position: label players with position OF as "Outfield", those with position "SS", "1B", "2B", and "3B" as "Infield", and those with position "P" or "C" as "Battery". Determine the number of putouts made by each of these three groups in 2016.
 
 SELECT
@@ -146,12 +165,14 @@ GROUP BY position;
 -- A4: Outfield = 29,650 putouts, Infield = 58,934 putouts, Battery = 41,424 putouts
 
 -- Q5: Find the average number of strikeouts per game by decade since 1920. Round the numbers you report to 2 decimal places. Do the same for home runs per game. Do you see any trends? USE THE TEAMS TABLE
+-- Class review: Can get decade by yearid/10*10 AS decade (Larry) because yearid is INT (you can take adv of how SQL uses ints)
 
 -- Average number of strikeouts per game by decade since 1920:
 SELECT
-	AVG(so+soa) / 2 AS avg_so,
+	SUM(so) AS so,
 	SUM(g) AS sumgame,
-	ROUND(((AVG(so+soa)) / 2) / (SUM(g)), 2) AS avg_so_pg_bd,
+	CAST(SUM(so)) / CAST(SUM(g)) AS avg_so_pg_bd, -- brackets screwed up somehow but you get the gist
+	ROUND(CAST(hr AS numeric) / (CAST(SUM(g AS numeric)/2)), 2) AS avg_hr_pg,
 	CASE WHEN yearid >= '1920' AND yearid <= '1929' THEN '1920s'
 		WHEN yearid >= '1930' AND yearid <= '1939' THEN '1930s'
 		WHEN yearid >= '1940' AND yearid <= '1949' THEN '1940s'
@@ -188,8 +209,6 @@ FROM teams
 WHERE yearid >= 1920
 GROUP BY decade
 ORDER BY decade;
-
--- A5: Strikeouts peaked in the mid 1900s
 
 -- Average number of home runs per game by decade since 1920:
 
@@ -272,7 +291,7 @@ WHERE yearid >= 1970
 ORDER BY w;
 -- A7: Last query redone without 1981: St. Louis Cardinals has the smallest number of wins (83 in 2006).
 
--- Q7 last q: How often from 1970 – 2016 was it the case that a team with the most wins also won the world series? What percentage of the time?
+-- Q7 last q: How often from 1970 – 2016 was it the case that a team with the most wins also won the world series? What percentage of the time? Class review: Denominator is 46 because 1994 did not have a World Series
 
 SELECT
 	DISTINCT yearid,
@@ -341,7 +360,7 @@ SELECT
 	ROUND((CAST(h.attendance AS numeric) / CAST(h.games AS numeric))) AS avg_att,
 	h.games
 FROM homegames AS h
-JOIN parks AS p
+LEFT JOIN parks AS p
 ON h.park = p.park
 WHERE h.year = 2016
 GROUP BY
@@ -382,6 +401,7 @@ Marlins Park (Miami Marlins) at 21,405
 U.S. Cellular Field (Chicago White Sox) at 21,559*/
 
 -- Q9: Which managers have won the TSN Manager of the Year award in both the National League (NL) and the American League (AL)? Give their full name and the teams that they were managing when they won the award.
+-- Class review: Supposed to create a UNION/INTERSECT with NL on top of AL.
 
 WITH nat AS (
 	SELECT
@@ -442,6 +462,31 @@ WHERE m.playerid LIKE 'leylaji99'
 	AND (m.yearid = 1988 OR m.yearid = 1990 OR m.yearid = 1992 OR m.yearid = 2006)
 ORDER BY m.yearid DESC;
 -- A9: Jim Leyland was managing the Pittsburgh Pirates/Pittsburg Alleghenys in 1988, 1990, 1992 and the Detroit Tigers in 2006.
+
+-- Maggie A9:
+Select
+	namefirst,
+	namelast,
+	m.teamid,
+	results.yearid,
+	results.lgid,
+	results.playerid from people AS p
+JOIN
+(Select playerid, yearid,lgid,awardid from awardsmanagers where playerid in
+	(Select playerid
+from awardsmanagers as a
+where playerid IN
+(select playerid where awardid LIKE 'TSN%' AND lgid IN ('AL'))
+INTERSECT
+Select playerid
+from awardsmanagers
+where playerid IN
+(select playerid where awardid LIKE 'TSN%' AND lgid IN ('NL')))
+AND awardid LIKE 'TSN%') AS results
+ON p.playerid=results.playerid
+JOIN managers as m
+ON results.playerid=m.playerid AND results.yearid=m.yearid
+order by results.playerid
 
 -- Q10: Find all players who hit their career highest number of home runs in 2016. Consider only players who have played in the league for at least 10 years, and who hit at least one home run in 2016. Report the players' first and last names and the number of home runs they hit in 2016.
 
@@ -507,8 +552,8 @@ JOIN decade AS d
 ON sh.playerid = d.playerid
 JOIN people AS p
 ON d.playerid = p.playerid
-WHERE yearid = 2016 -- Show me their hr for 2016 only
-	AND mh.maxmaxhrppby = sh.totalhrppinsixteen -- Show me that their career high matches 2016
+WHERE yearid = 2016
+	AND mh.maxmaxhrppby = sh.totalhrppinsixteen
 -- A10: 8 players hit their career highest number of home runs in 2016 (verified playerids thru the query below)
 -- Note: Some ppl's career high is in 2016 and another year: Edwin Encarnacion (2012), Francisco Liriano (2015), Adam Wainwright (2009)
 
@@ -516,58 +561,5 @@ SELECT playerid, yearid, MAX(hr)
 FROM batting
 WHERE playerid LIKE 'canoro01' -- Change playerid to verify their career max is in 2016
 GROUP BY yearid, playerid, hr
-ORDER BY hr DESC, yearid DESC;
+ORDER BY /*hr DESC,*/ yearid DESC;
 -- Playerids (8): canoro01, colonba01, davisra01, encared01, liriafr01, napolmi01, paganan01, wainwad01
-
--- Katie A10 (returns dupes):
-WITH a AS
-	(SELECT 
-		b.playerid,
-		COUNT (b.yearid) AS years
-	FROM batting AS b
-	GROUP BY b.playerid
-	HAVING COUNT(b.yearid)>10),
-
-c AS
-	(SELECT
-		b.playerid,
-	 	b.yearid,
-	 	b.hr,
-		MAX(b.hr) AS career_high
-	  FROM batting AS b
-	  WHERE b.yearid = '2016'
-	  GROUP BY 
-	 	b.playerid,
-		b.yearid,
-	 	b.hr
-	   HAVING b.hr = MAX(b.hr))
-
-SELECT
- 	a.playerid,
-	a.years,
-	b.hr,
-	c.career_high,
-	p.namefirst,
-	p.namelast,
-	b.yearid,
-	c.yearid
-FROM batting AS b
-INNER JOIN people AS p
-ON b.playerid = p.playerid
-INNER JOIN a
-ON a.playerid = p.playerid
-INNER JOIN c
-ON a.playerid = c.playerid
-WHERE b.yearid = 2016
-	AND b.yearid = c.yearid
-	AND b.hr >= 1
-GROUP BY 
-	a.playerid,
-	a.years,
-	b.hr,
-	c.career_high,
-	p.namefirst,
-	p.namelast,
-	b.yearid,
-	c.yearid
-ORDER BY c.career_high DESC;
